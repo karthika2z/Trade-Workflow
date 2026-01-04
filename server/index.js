@@ -452,10 +452,7 @@ async function fetchChartImage(settings, chartConfig) {
     width: '1920',
     height: '1080',
     format: 'png',
-    hide_top_toolbar: 'true',
-    hide_side_toolbar: 'true',
-    hide_legend: 'true',
-    preset: 'vision-llm'  // AI-enhanced for GPT-4V and Claude Vision
+    preset: 'ai'  // AI-enhanced for GPT-4V and Claude Vision
   });
 
   // Add indicators if specified
@@ -479,17 +476,38 @@ async function fetchChartImage(settings, chartConfig) {
       config: chartConfig
     };
   } catch (err) {
-    const errorMessage = err.response?.data?.toString() || err.message;
-    console.error('Chart service API error:', {
+    // Enhanced error logging
+    let errorMessage = err.message;
+    if (err.response) {
+      // Try to parse the error response
+      try {
+        const errorData = err.response.data;
+        if (Buffer.isBuffer(errorData)) {
+          errorMessage = errorData.toString('utf-8');
+        } else if (typeof errorData === 'object') {
+          errorMessage = JSON.stringify(errorData);
+        } else {
+          errorMessage = String(errorData);
+        }
+      } catch (parseErr) {
+        errorMessage = err.response.statusText || err.message;
+      }
+    }
+
+    console.error('❌ Chart API Error:', {
       status: err.response?.status,
+      statusText: err.response?.statusText,
       error: errorMessage,
       symbol,
-      interval,
-      url
+      interval: normalizedInterval,
+      url,
+      apiKeyPresent: !!settings.AICharts?.apiKey,
+      apiKeyLength: settings.AICharts?.apiKey?.length
     });
+
     return {
       success: false,
-      error: errorMessage,
+      error: `${err.response?.status || 'Network'} Error: ${errorMessage}`,
       config: chartConfig
     };
   }

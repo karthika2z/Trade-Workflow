@@ -112,7 +112,7 @@ export default function WorkflowEditor({ workflow, onSave, onCancel, onRun }) {
   const [activeStep, setActiveStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
-  const [apiKeyStatus, setApiKeyStatus] = useState({ chartImg: false, openai: false, anthropic: false });
+  const [apiKeyStatus, setApiKeyStatus] = useState({ AICharts: false, openai: false, anthropic: false });
   const [apiKeyWarning, setApiKeyWarning] = useState('');
 
   useEffect(() => {
@@ -136,7 +136,7 @@ export default function WorkflowEditor({ workflow, onSave, onCancel, onRun }) {
       const res = await fetch('/api/settings');
       const settings = await res.json();
       setApiKeyStatus({
-        chartImg: settings.chartImg?.apiKey && !settings.chartImg.apiKey.includes('••••') ? false : settings.chartImg?.apiKey?.length > 4,
+        AICharts: settings.AICharts?.apiKey && !settings.AICharts.apiKey.includes('••••') ? false : settings.AICharts?.apiKey?.length > 4,
         openai: settings.openai?.apiKey && !settings.openai.apiKey.includes('••••') ? false : settings.openai?.apiKey?.length > 4,
         anthropic: settings.anthropic?.apiKey && !settings.anthropic.apiKey.includes('••••') ? false : settings.anthropic?.apiKey?.length > 4
       });
@@ -147,7 +147,7 @@ export default function WorkflowEditor({ workflow, onSave, onCancel, onRun }) {
 
   // Re-validate when API key status or provider changes
   useEffect(() => {
-    if (apiKeyStatus.chartImg !== undefined) {
+    if (apiKeyStatus.AICharts !== undefined) {
       validate();
     }
   }, [apiKeyStatus, formData.aiProvider]);
@@ -176,8 +176,8 @@ export default function WorkflowEditor({ workflow, onSave, onCancel, onRun }) {
     if (!formData.lowTimeframe?.interval) newErrors.lowTimeframe = 'Low timeframe is required';
     
     // Check API keys
-    if (!apiKeyStatus.chartImg) {
-      warnings.push('Chart-img.com API key is not configured');
+    if (!apiKeyStatus.AICharts) {
+      warnings.push('AICharts API key is not configured');
     }
     
     if (formData.aiProvider === 'openai' && !apiKeyStatus.openai) {
