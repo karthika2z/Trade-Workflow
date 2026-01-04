@@ -451,8 +451,7 @@ async function fetchChartImage(settings, chartConfig) {
     theme: 'light',
     width: '1920',
     height: '1080',
-    format: 'png',
-    preset: 'ai'  // AI-enhanced for GPT-4V and Claude Vision
+    format: 'png'
   });
 
   // Add indicators if specified
