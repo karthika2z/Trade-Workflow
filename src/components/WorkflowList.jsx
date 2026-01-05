@@ -1,20 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Play, Edit, Trash2, MoreVertical, Clock,
-  BarChart3, Bot, TrendingUp, TrendingDown, Minus,
-  Copy, Plus, Download, Upload, Share2, X, Tag, User
+  Play, Trash2, MoreVertical, Clock,
+  BarChart3, Bot,
+  Copy, Plus, Download, Upload, X
 } from 'lucide-react';
 
 export default function WorkflowList({ onEdit, onRun, onNew }) {
   const [workflows, setWorkflows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openMenu, setOpenMenu] = useState(null);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [showPublishModal, setShowPublishModal] = useState(false);
-  const [publishingWorkflow, setPublishingWorkflow] = useState(null);
   const [importError, setImportError] = useState('');
-  const [publishForm, setPublishForm] = useState({ name: '', description: '', author: '', tags: '' });
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -35,7 +31,7 @@ export default function WorkflowList({ onEdit, onRun, onNew }) {
 
   const handleDelete = async (id) => {
     if (!confirm('Are you sure you want to delete this workflow?')) return;
-    
+
     try {
       await fetch(`/api/workflows/${id}`, { method: 'DELETE' });
       setWorkflows(workflows.filter(w => w.id !== id));
@@ -106,7 +102,6 @@ export default function WorkflowList({ onEdit, onRun, onNew }) {
 
       const newWorkflow = await res.json();
       setWorkflows([newWorkflow, ...workflows]);
-      setShowImportModal(false);
       setImportError('');
     } catch (err) {
       setImportError(err.message || 'Failed to import workflow');
@@ -114,47 +109,6 @@ export default function WorkflowList({ onEdit, onRun, onNew }) {
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
-    }
-  };
-
-  const handlePublishClick = (workflow) => {
-    setPublishingWorkflow(workflow);
-    setPublishForm({
-      name: workflow.name,
-      description: '',
-      author: '',
-      tags: ''
-    });
-    setShowPublishModal(true);
-    setOpenMenu(null);
-  };
-
-  const handlePublish = async () => {
-    if (!publishingWorkflow) return;
-
-    try {
-      const res = await fetch('/api/community/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workflowId: publishingWorkflow.id,
-          name: publishForm.name,
-          description: publishForm.description,
-          author: publishForm.author || 'Anonymous',
-          tags: publishForm.tags.split(',').map(t => t.trim()).filter(Boolean)
-        })
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Publish failed');
-      }
-
-      setShowPublishModal(false);
-      setPublishingWorkflow(null);
-      alert('Workflow published to community!');
-    } catch (err) {
-      alert('Failed to publish: ' + err.message);
     }
   };
 
@@ -168,7 +122,7 @@ export default function WorkflowList({ onEdit, onRun, onNew }) {
 
   if (workflows.length === 0) {
     return (
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="flex flex-col items-center justify-center h-96 text-center"
@@ -240,10 +194,10 @@ export default function WorkflowList({ onEdit, onRun, onNew }) {
               >
                 <MoreVertical className="w-4 h-4" />
               </button>
-              
+
               {/* Dropdown Menu */}
               {openMenu === workflow.id && (
-                <div className="absolute right-0 mt-1 w-44 py-1 bg-terminal-card border border-terminal-border rounded-lg shadow-xl z-20">
+                <div className="absolute right-0 mt-1 w-36 py-1 bg-terminal-card border border-terminal-border rounded-lg shadow-xl z-20">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -262,15 +216,6 @@ export default function WorkflowList({ onEdit, onRun, onNew }) {
                   >
                     <Download className="w-4 h-4" /> Export
                   </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePublishClick(workflow);
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm text-blue-400 hover:bg-slate-800 flex items-center gap-2"
-                  >
-                    <Share2 className="w-4 h-4" /> Share to Community
-                  </button>
                   <div className="border-t border-terminal-border my-1" />
                   <button
                     onClick={(e) => {
@@ -288,12 +233,12 @@ export default function WorkflowList({ onEdit, onRun, onNew }) {
             {/* Card Content */}
             <div className="flex items-start gap-4 mb-4">
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                workflow.aiProvider === 'openai' 
-                  ? 'bg-emerald-500/20 border border-emerald-500/30' 
+                workflow.ai_provider === 'openai'
+                  ? 'bg-emerald-500/20 border border-emerald-500/30'
                   : 'bg-orange-500/20 border border-orange-500/30'
               }`}>
                 <Bot className={`w-6 h-6 ${
-                  workflow.aiProvider === 'openai' ? 'text-emerald-400' : 'text-orange-400'
+                  workflow.ai_provider === 'openai' ? 'text-emerald-400' : 'text-orange-400'
                 }`} />
               </div>
               <div className="flex-1 min-w-0">
@@ -304,19 +249,19 @@ export default function WorkflowList({ onEdit, onRun, onNew }) {
 
             {/* Timeframes */}
             <div className="flex flex-wrap gap-2 mb-4">
-              {workflow.highTimeframe?.interval && (
+              {workflow.high_timeframe?.interval && (
                 <span className="px-2 py-1 text-xs font-mono bg-blue-500/10 text-blue-400 rounded border border-blue-500/20">
-                  HTF: {workflow.highTimeframe.interval}
+                  HTF: {workflow.high_timeframe.interval}
                 </span>
               )}
-              {workflow.midTimeframe?.enabled && workflow.midTimeframe?.interval && (
+              {workflow.mid_timeframe?.enabled && workflow.mid_timeframe?.interval && (
                 <span className="px-2 py-1 text-xs font-mono bg-purple-500/10 text-purple-400 rounded border border-purple-500/20">
-                  MTF: {workflow.midTimeframe.interval}
+                  MTF: {workflow.mid_timeframe.interval}
                 </span>
               )}
-              {workflow.lowTimeframe?.interval && (
+              {workflow.low_timeframe?.interval && (
                 <span className="px-2 py-1 text-xs font-mono bg-amber-500/10 text-amber-400 rounded border border-amber-500/20">
-                  LTF: {workflow.lowTimeframe.interval}
+                  LTF: {workflow.low_timeframe.interval}
                 </span>
               )}
             </div>
@@ -325,7 +270,7 @@ export default function WorkflowList({ onEdit, onRun, onNew }) {
             <div className="flex items-center justify-between pt-4 border-t border-terminal-border">
               <div className="flex items-center gap-2 text-xs text-slate-500">
                 <Clock className="w-3.5 h-3.5" />
-                {new Date(workflow.updatedAt).toLocaleDateString()}
+                {workflow.updated_at ? new Date(workflow.updated_at).toLocaleDateString() : 'N/A'}
               </div>
               <button
                 onClick={(e) => {
@@ -341,112 +286,6 @@ export default function WorkflowList({ onEdit, onRun, onNew }) {
           </motion.div>
         ))}
       </div>
-
-      {/* Publish Modal */}
-      <AnimatePresence>
-        {showPublishModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setShowPublishModal(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-terminal-bg border border-terminal-border rounded-xl p-6 w-full max-w-md"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-display font-semibold text-white flex items-center gap-2">
-                  <Share2 className="w-5 h-5 text-blue-400" />
-                  Share to Community
-                </h3>
-                <button
-                  onClick={() => setShowPublishModal(false)}
-                  className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm text-slate-400 mb-1">Workflow Name</label>
-                  <input
-                    type="text"
-                    value={publishForm.name}
-                    onChange={(e) => setPublishForm({ ...publishForm, name: e.target.value })}
-                    className="input w-full"
-                    placeholder="My Awesome Workflow"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-400 mb-1">Description</label>
-                  <textarea
-                    value={publishForm.description}
-                    onChange={(e) => setPublishForm({ ...publishForm, description: e.target.value })}
-                    className="input w-full h-24 resize-none"
-                    placeholder="Describe what this workflow does..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-400 mb-1 flex items-center gap-1">
-                    <User className="w-3.5 h-3.5" />
-                    Author (optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={publishForm.author}
-                    onChange={(e) => setPublishForm({ ...publishForm, author: e.target.value })}
-                    className="input w-full"
-                    placeholder="Your name or anonymous"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-400 mb-1 flex items-center gap-1">
-                    <Tag className="w-3.5 h-3.5" />
-                    Tags (comma-separated)
-                  </label>
-                  <input
-                    type="text"
-                    value={publishForm.tags}
-                    onChange={(e) => setPublishForm({ ...publishForm, tags: e.target.value })}
-                    className="input w-full"
-                    placeholder="macd, trend, scalping"
-                  />
-                </div>
-
-                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-sm text-blue-300">
-                  Your workflow will be shared publicly. API keys and sensitive data are automatically removed.
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={() => setShowPublishModal(false)}
-                    className="btn btn-secondary flex-1"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handlePublish}
-                    className="btn btn-primary flex-1"
-                    disabled={!publishForm.name}
-                  >
-                    <Share2 className="w-4 h-4" />
-                    Publish
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Import Error Toast */}
       <AnimatePresence>

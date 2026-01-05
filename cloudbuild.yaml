@@ -1,0 +1,9 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/gen-lang-client-0089199773/ai-trade-workflow:latest'
+      - '.'
+images:
+  - 'gcr.io/gen-lang-client-0089199773/ai-trade-workflow:latest'

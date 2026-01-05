@@ -12,6 +12,13 @@ dist/
 # Data files (contains API keys)
 data/
 
+# Secrets and environment configs
+env-vars.yaml
+*.secret
+
+# Supabase (removed from project)
+supabase/
+
 # IDE
 .vscode/
 .idea/
