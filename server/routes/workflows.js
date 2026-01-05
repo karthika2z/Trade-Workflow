@@ -15,7 +15,7 @@ const router = express.Router();
  */
 router.get('/', async (req, res) => {
   try {
-    const workflows = getWorkflows();
+    const workflows = await getWorkflows();
     res.json(workflows);
   } catch (err) {
     console.error('Get workflows error:', err);
@@ -29,7 +29,7 @@ router.get('/', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   try {
-    const workflow = getWorkflowById(req.params.id);
+    const workflow = await getWorkflowById(req.params.id);
 
     if (!workflow) {
       return res.status(404).json({ error: 'Workflow not found' });
@@ -59,7 +59,7 @@ router.post('/', async (req, res) => {
     }
 
     // Check for duplicate name
-    const existingWorkflows = getWorkflows();
+    const existingWorkflows = await getWorkflows();
     if (existingWorkflows.some(w => w.name === name)) {
       return res.status(409).json({
         error: 'Workflow name already exists',
@@ -79,7 +79,7 @@ router.post('/', async (req, res) => {
       webhook: webhook || null
     };
 
-    const newWorkflow = createWorkflow(workflowData);
+    const newWorkflow = await createWorkflow(workflowData);
     res.status(201).json(newWorkflow);
   } catch (err) {
     console.error('Create workflow error:', err);
@@ -96,14 +96,14 @@ router.put('/:id', async (req, res) => {
     const { name, symbol, highTimeframe, midTimeframe, lowTimeframe, aiProvider, aiConfig, userPrompt, webhook } = req.body;
 
     // Check if workflow exists
-    const existing = getWorkflowById(req.params.id);
+    const existing = await getWorkflowById(req.params.id);
     if (!existing) {
       return res.status(404).json({ error: 'Workflow not found' });
     }
 
     // Check for duplicate name (excluding current workflow)
     if (name && name !== existing.name) {
-      const allWorkflows = getWorkflows();
+      const allWorkflows = await getWorkflows();
       if (allWorkflows.some(w => w.name === name && w.id !== req.params.id)) {
         return res.status(409).json({
           error: 'Workflow name already exists',
@@ -124,7 +124,7 @@ router.put('/:id', async (req, res) => {
       ...(webhook !== undefined && { webhook })
     };
 
-    const updatedWorkflow = updateWorkflow(req.params.id, updateData);
+    const updatedWorkflow = await updateWorkflow(req.params.id, updateData);
     res.json(updatedWorkflow);
   } catch (err) {
     console.error('Update workflow error:', err);
@@ -138,7 +138,7 @@ router.put('/:id', async (req, res) => {
  */
 router.delete('/:id', async (req, res) => {
   try {
-    const deleted = deleteWorkflow(req.params.id);
+    const deleted = await deleteWorkflow(req.params.id);
 
     if (!deleted) {
       return res.status(404).json({ error: 'Workflow not found' });
@@ -157,7 +157,7 @@ router.delete('/:id', async (req, res) => {
  */
 router.get('/:id/export', async (req, res) => {
   try {
-    const workflow = getWorkflowById(req.params.id);
+    const workflow = await getWorkflowById(req.params.id);
 
     if (!workflow) {
       return res.status(404).json({ error: 'Workflow not found' });
@@ -215,7 +215,7 @@ router.post('/import', async (req, res) => {
       webhook: importedWorkflow.webhook || null
     };
 
-    const newWorkflow = createWorkflow(workflowData);
+    const newWorkflow = await createWorkflow(workflowData);
     res.status(201).json(newWorkflow);
   } catch (err) {
     console.error('Import workflow error:', err);

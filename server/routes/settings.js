@@ -9,7 +9,7 @@ const router = express.Router();
  */
 router.get('/', async (req, res) => {
   try {
-    const maskedConfig = getMaskedConfig();
+    const maskedConfig = await getMaskedConfig();
 
     // Format response to match frontend expectations
     const settings = {
@@ -79,7 +79,7 @@ router.put('/', async (req, res) => {
     }
 
     if (Object.keys(updates).length > 0) {
-      updateConfig(updates);
+      await updateConfig(updates);
     }
 
     res.json({ success: true, message: 'API keys updated successfully' });
@@ -111,7 +111,7 @@ router.delete('/:provider', async (req, res) => {
       tradingview: 'tradingview_api_key'
     };
 
-    updateConfig({ [keyMap[provider]]: '' });
+    await updateConfig({ [keyMap[provider]]: '' });
 
     res.json({ success: true, message: `${provider} API key deleted successfully` });
   } catch (err) {

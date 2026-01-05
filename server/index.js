@@ -65,18 +65,26 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.get('/api/health', (req, res) => {
-  const maskedConfig = getMaskedConfig();
+app.get('/api/health', async (req, res) => {
+  try {
+    const maskedConfig = await getMaskedConfig();
 
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    services: {
-      openai: maskedConfig.has_openai_key,
-      anthropic: maskedConfig.has_anthropic_key,
-      tradingview: maskedConfig.has_tradingview_key
-    }
-  });
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      services: {
+        openai: maskedConfig.has_openai_key,
+        anthropic: maskedConfig.has_anthropic_key,
+        tradingview: maskedConfig.has_tradingview_key
+      }
+    });
+  } catch (err) {
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      services: { openai: false, anthropic: false, tradingview: false }
+    });
+  }
 });
 
 // ============================================================================
@@ -124,8 +132,8 @@ app.use((err, req, res, next) => {
 // START SERVER
 // ============================================================================
 
-app.listen(PORT, () => {
-  const maskedConfig = getMaskedConfig();
+app.listen(PORT, async () => {
+  const gcsBucket = process.env.GCS_BUCKET;
 
   console.log('');
   console.log('='.repeat(60));
@@ -133,26 +141,35 @@ app.listen(PORT, () => {
   console.log('='.repeat(60));
   console.log(`  Server:      http://localhost:${PORT}`);
   console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`  Storage:     ${gcsBucket ? `GCS (${gcsBucket})` : 'Local (./data/)'}`);
   console.log('');
   console.log('  API Endpoints:');
   console.log('  - GET  /api/workflows         List all workflows');
   console.log('  - POST /api/workflows         Create workflow');
-  console.log('  - GET  /api/execute/:id       Execute workflow (SSE)');
+  console.log('  - POST /api/execute/:id       Execute workflow (SSE)');
   console.log('  - POST /api/run/:id           Execute workflow (JSON)');
   console.log('  - GET  /api/settings          Get API keys');
   console.log('  - PUT  /api/settings          Update API keys');
   console.log('');
-  console.log('  API Keys Status:');
-  console.log(`  - OpenAI:      ${maskedConfig.has_openai_key ? 'Configured' : 'Not set'}`);
-  console.log(`  - Anthropic:   ${maskedConfig.has_anthropic_key ? 'Configured' : 'Not set'}`);
-  console.log(`  - TradingView: ${maskedConfig.has_tradingview_key ? 'Configured' : 'Not set'}`);
-  console.log('');
-  console.log('  Data stored in: ./data/');
-  console.log('='.repeat(60));
-  console.log('');
 
-  if (!maskedConfig.has_openai_key && !maskedConfig.has_anthropic_key) {
-    console.log('Note: Add API keys in Settings to enable AI analysis\n');
+  try {
+    const maskedConfig = await getMaskedConfig();
+    console.log('  API Keys Status:');
+    console.log(`  - OpenAI:      ${maskedConfig.has_openai_key ? 'Configured' : 'Not set'}`);
+    console.log(`  - Anthropic:   ${maskedConfig.has_anthropic_key ? 'Configured' : 'Not set'}`);
+    console.log(`  - TradingView: ${maskedConfig.has_tradingview_key ? 'Configured' : 'Not set'}`);
+    console.log('');
+    console.log('='.repeat(60));
+    console.log('');
+
+    if (!maskedConfig.has_openai_key && !maskedConfig.has_anthropic_key) {
+      console.log('Note: Add API keys in Settings to enable AI analysis\n');
+    }
+  } catch (err) {
+    console.log('  API Keys Status: Unable to load (will be available after first request)');
+    console.log('');
+    console.log('='.repeat(60));
+    console.log('');
   }
 });
 

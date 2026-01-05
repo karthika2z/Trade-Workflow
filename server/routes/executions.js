@@ -229,7 +229,7 @@ async function forwardToWebhook(webhookConfig, data) {
 router.get('/', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 50;
-    const executions = getExecutions(limit);
+    const executions = await getExecutions(limit);
     res.json(executions);
   } catch (err) {
     console.error('Get executions error:', err);
@@ -258,7 +258,7 @@ router.post('/:workflowId', async (req, res) => {
 
   try {
     // Get workflow from file storage
-    const workflow = getWorkflowById(req.params.workflowId);
+    const workflow = await getWorkflowById(req.params.workflowId);
 
     if (!workflow) {
       sendUpdate('error', 'failed', { message: 'Workflow not found' });
@@ -279,7 +279,7 @@ router.post('/:workflowId', async (req, res) => {
     sendUpdate('api_keys', 'running', { message: 'Loading API keys...' });
 
     const requiredProvider = workflow.ai_provider;
-    const apiKey = getApiKey(requiredProvider);
+    const apiKey = await getApiKey(requiredProvider);
 
     if (!apiKey) {
       sendUpdate('api_keys', 'failed', {
@@ -399,7 +399,7 @@ router.post('/:workflowId', async (req, res) => {
     }
 
     // Save execution record to file storage
-    createExecution({
+    await createExecution({
       id: executionId,
       workflow_id: workflow.id,
       workflow_name: workflow.name,
@@ -438,14 +438,14 @@ router.post('/:workflowId', async (req, res) => {
 router.post('/run/:workflowId', async (req, res) => {
   try {
     // Get workflow from file storage
-    const workflow = getWorkflowById(req.params.workflowId);
+    const workflow = await getWorkflowById(req.params.workflowId);
 
     if (!workflow) {
       return res.status(404).json({ error: 'Workflow not found' });
     }
 
     // Get API key from config
-    const apiKey = getApiKey(workflow.ai_provider);
+    const apiKey = await getApiKey(workflow.ai_provider);
 
     if (!apiKey) {
       return res.status(400).json({
@@ -511,7 +511,7 @@ router.post('/run/:workflowId', async (req, res) => {
     }
 
     // Save execution to file storage
-    createExecution({
+    await createExecution({
       workflow_id: workflow.id,
       workflow_name: workflow.name,
       symbol: workflow.symbol,

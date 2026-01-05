@@ -2,17 +2,163 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
+import { Storage } from '@google-cloud/storage';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Configuration
+const GCS_BUCKET = process.env.GCS_BUCKET;
+const USE_GCS = !!GCS_BUCKET;
+
+// Local file paths (fallback for development)
 const DATA_DIR = path.join(__dirname, '../../data');
 const WORKFLOWS_FILE = path.join(DATA_DIR, 'workflows.json');
 const EXECUTIONS_FILE = path.join(DATA_DIR, 'executions.json');
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 
-// Ensure data directory and files exist
+// GCS file names
+const GCS_WORKFLOWS = 'workflows.json';
+const GCS_EXECUTIONS = 'executions.json';
+const GCS_CONFIG = 'config.json';
+
+// GCS client (initialized lazily)
+let gcsStorage = null;
+let gcsBucket = null;
+
+function getGCSBucket() {
+  if (!gcsBucket && USE_GCS) {
+    gcsStorage = new Storage();
+    gcsBucket = gcsStorage.bucket(GCS_BUCKET);
+  }
+  return gcsBucket;
+}
+
+// In-memory cache for GCS data to reduce reads
+const cache = {
+  workflows: null,
+  executions: null,
+  config: null,
+  lastFetch: {
+    workflows: 0,
+    executions: 0,
+    config: 0
+  }
+};
+
+const CACHE_TTL = 5000; // 5 seconds cache TTL
+
+// ============ GCS HELPERS ============
+
+async function readFromGCS(fileName) {
+  const bucket = getGCSBucket();
+  try {
+    const file = bucket.file(fileName);
+    const [exists] = await file.exists();
+    if (!exists) {
+      return null;
+    }
+    const [contents] = await file.download();
+    return JSON.parse(contents.toString());
+  } catch (err) {
+    console.error(`Error reading ${fileName} from GCS:`, err.message);
+    return null;
+  }
+}
+
+async function writeToGCS(fileName, data) {
+  const bucket = getGCSBucket();
+  try {
+    const file = bucket.file(fileName);
+    await file.save(JSON.stringify(data, null, 2), {
+      contentType: 'application/json',
+      resumable: false
+    });
+    return true;
+  } catch (err) {
+    console.error(`Error writing ${fileName} to GCS:`, err.message);
+    return false;
+  }
+}
+
+// ============ GENERIC READ/WRITE ============
+
+async function readData(type) {
+  // Check cache first
+  const now = Date.now();
+  if (cache[type] !== null && (now - cache.lastFetch[type]) < CACHE_TTL) {
+    return cache[type];
+  }
+
+  let data;
+
+  if (USE_GCS) {
+    data = await readFromGCS(getGCSFileName(type));
+    if (data === null) {
+      data = getDefaultData(type);
+      await writeToGCS(getGCSFileName(type), data);
+    }
+  } else {
+    const filePath = getLocalFilePath(type);
+    if (!fs.existsSync(filePath)) {
+      data = getDefaultData(type);
+      fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+    } else {
+      data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    }
+  }
+
+  // Update cache
+  cache[type] = data;
+  cache.lastFetch[type] = now;
+
+  return data;
+}
+
+async function writeData(type, data) {
+  // Update cache
+  cache[type] = data;
+  cache.lastFetch[type] = Date.now();
+
+  if (USE_GCS) {
+    return await writeToGCS(getGCSFileName(type), data);
+  } else {
+    const filePath = getLocalFilePath(type);
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  }
+}
+
+function getGCSFileName(type) {
+  const map = { workflows: GCS_WORKFLOWS, executions: GCS_EXECUTIONS, config: GCS_CONFIG };
+  return map[type];
+}
+
+function getLocalFilePath(type) {
+  const map = { workflows: WORKFLOWS_FILE, executions: EXECUTIONS_FILE, config: CONFIG_FILE };
+  return map[type];
+}
+
+function getDefaultData(type) {
+  if (type === 'config') {
+    return {
+      openai_api_key: '',
+      anthropic_api_key: '',
+      tradingview_api_key: ''
+    };
+  }
+  return [];
+}
+
+// ============ INITIALIZATION ============
+
 function initializeStorage() {
+  if (USE_GCS) {
+    console.log(`Using Google Cloud Storage bucket: ${GCS_BUCKET}`);
+    return;
+  }
+
+  // Local storage initialization
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
@@ -32,6 +178,8 @@ function initializeStorage() {
       tradingview_api_key: ''
     }, null, 2), 'utf8');
   }
+
+  console.log('Using local file storage');
 }
 
 // Initialize on module load
@@ -39,18 +187,17 @@ initializeStorage();
 
 // ============ WORKFLOWS ============
 
-export function getWorkflows() {
-  const data = fs.readFileSync(WORKFLOWS_FILE, 'utf8');
-  return JSON.parse(data);
+export async function getWorkflows() {
+  return await readData('workflows');
 }
 
-export function getWorkflowById(id) {
-  const workflows = getWorkflows();
+export async function getWorkflowById(id) {
+  const workflows = await getWorkflows();
   return workflows.find(w => w.id === id) || null;
 }
 
-export function createWorkflow(workflowData) {
-  const workflows = getWorkflows();
+export async function createWorkflow(workflowData) {
+  const workflows = await getWorkflows();
   const newWorkflow = {
     id: uuidv4(),
     ...workflowData,
@@ -58,12 +205,12 @@ export function createWorkflow(workflowData) {
     updated_at: new Date().toISOString()
   };
   workflows.push(newWorkflow);
-  fs.writeFileSync(WORKFLOWS_FILE, JSON.stringify(workflows, null, 2), 'utf8');
+  await writeData('workflows', workflows);
   return newWorkflow;
 }
 
-export function updateWorkflow(id, updates) {
-  const workflows = getWorkflows();
+export async function updateWorkflow(id, updates) {
+  const workflows = await getWorkflows();
   const index = workflows.findIndex(w => w.id === id);
   if (index === -1) return null;
 
@@ -73,51 +220,50 @@ export function updateWorkflow(id, updates) {
     id, // Ensure ID doesn't change
     updated_at: new Date().toISOString()
   };
-  fs.writeFileSync(WORKFLOWS_FILE, JSON.stringify(workflows, null, 2), 'utf8');
+  await writeData('workflows', workflows);
   return workflows[index];
 }
 
-export function deleteWorkflow(id) {
-  const workflows = getWorkflows();
+export async function deleteWorkflow(id) {
+  const workflows = await getWorkflows();
   const index = workflows.findIndex(w => w.id === id);
   if (index === -1) return false;
 
   workflows.splice(index, 1);
-  fs.writeFileSync(WORKFLOWS_FILE, JSON.stringify(workflows, null, 2), 'utf8');
+  await writeData('workflows', workflows);
   return true;
 }
 
 // ============ EXECUTIONS ============
 
-export function getExecutions(limit = 50) {
-  const data = fs.readFileSync(EXECUTIONS_FILE, 'utf8');
-  const executions = JSON.parse(data);
+export async function getExecutions(limit = 50) {
+  const executions = await readData('executions');
   // Return most recent first, limited
   return executions.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, limit);
 }
 
-export function getExecutionById(id) {
-  const data = fs.readFileSync(EXECUTIONS_FILE, 'utf8');
-  const executions = JSON.parse(data);
+export async function getExecutionById(id) {
+  const executions = await readData('executions');
   return executions.find(e => e.id === id) || null;
 }
 
-export function createExecution(executionData) {
-  const data = fs.readFileSync(EXECUTIONS_FILE, 'utf8');
-  const executions = JSON.parse(data);
+export async function createExecution(executionData) {
+  const executions = await readData('executions');
   const newExecution = {
     id: uuidv4(),
     ...executionData,
     created_at: new Date().toISOString()
   };
   executions.push(newExecution);
-  fs.writeFileSync(EXECUTIONS_FILE, JSON.stringify(executions, null, 2), 'utf8');
+
+  // Keep only last 100 executions to avoid unbounded growth
+  const trimmed = executions.slice(-100);
+  await writeData('executions', trimmed);
   return newExecution;
 }
 
-export function updateExecution(id, updates) {
-  const data = fs.readFileSync(EXECUTIONS_FILE, 'utf8');
-  const executions = JSON.parse(data);
+export async function updateExecution(id, updates) {
+  const executions = await readData('executions');
   const index = executions.findIndex(e => e.id === id);
   if (index === -1) return null;
 
@@ -125,26 +271,25 @@ export function updateExecution(id, updates) {
     ...executions[index],
     ...updates
   };
-  fs.writeFileSync(EXECUTIONS_FILE, JSON.stringify(executions, null, 2), 'utf8');
+  await writeData('executions', executions);
   return executions[index];
 }
 
 // ============ CONFIG ============
 
-export function getConfig() {
-  const data = fs.readFileSync(CONFIG_FILE, 'utf8');
-  return JSON.parse(data);
+export async function getConfig() {
+  return await readData('config');
 }
 
-export function updateConfig(updates) {
-  const config = getConfig();
+export async function updateConfig(updates) {
+  const config = await getConfig();
   const newConfig = { ...config, ...updates };
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(newConfig, null, 2), 'utf8');
+  await writeData('config', newConfig);
   return newConfig;
 }
 
-export function getApiKey(provider) {
-  const config = getConfig();
+export async function getApiKey(provider) {
+  const config = await getConfig();
   const keyMap = {
     openai: 'openai_api_key',
     anthropic: 'anthropic_api_key',
@@ -159,8 +304,8 @@ function maskApiKey(key) {
   return '••••••••' + key.slice(-4);
 }
 
-export function getMaskedConfig() {
-  const config = getConfig();
+export async function getMaskedConfig() {
+  const config = await getConfig();
   return {
     openai_api_key: maskApiKey(config.openai_api_key),
     anthropic_api_key: maskApiKey(config.anthropic_api_key),
