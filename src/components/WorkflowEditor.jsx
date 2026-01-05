@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  Save, X, Play, ChevronRight, ChevronDown, BarChart3, 
-  Bot, Webhook, Image, Settings, Plus, Trash2, Info,
+import {
+  Save, X, Play, ChevronRight, ChevronDown, BarChart3,
+  Bot, Webhook, Image, Settings, Plus, Trash2,
   ArrowRight, Check, AlertCircle
 } from 'lucide-react';
 
@@ -95,37 +95,54 @@ Return your analysis in this exact JSON format:
   }
 };
 
-export default function WorkflowEditor({ workflow, onSave, onCancel, onRun }) {
+// Helper to map snake_case server data to camelCase frontend data
+function mapWorkflowFromServer(workflow) {
+  if (!workflow) return null;
+  return {
+    ...workflow,
+    // Map snake_case fields to camelCase
+    highTimeframe: workflow.high_timeframe || workflow.highTimeframe,
+    midTimeframe: workflow.mid_timeframe || workflow.midTimeframe,
+    lowTimeframe: workflow.low_timeframe || workflow.lowTimeframe,
+    aiProvider: workflow.ai_provider || workflow.aiProvider,
+    aiConfig: workflow.ai_config || workflow.aiConfig,
+    userPrompt: workflow.user_prompt || workflow.userPrompt,
+  };
+}
+
+export default function WorkflowEditor({ workflow, onSave, onCancel, onRun, onNavigateToSettings }) {
   const [formData, setFormData] = useState(() => {
     if (!workflow) return DEFAULT_WORKFLOW;
+    const mapped = mapWorkflowFromServer(workflow);
     // Deep merge to preserve nested object defaults while using saved values
     return {
       ...DEFAULT_WORKFLOW,
-      ...workflow,
-      highTimeframe: { ...DEFAULT_WORKFLOW.highTimeframe, ...workflow.highTimeframe },
-      midTimeframe: { ...DEFAULT_WORKFLOW.midTimeframe, ...workflow.midTimeframe },
-      lowTimeframe: { ...DEFAULT_WORKFLOW.lowTimeframe, ...workflow.lowTimeframe },
-      aiConfig: { ...DEFAULT_WORKFLOW.aiConfig, ...workflow.aiConfig },
-      webhook: { ...DEFAULT_WORKFLOW.webhook, ...workflow.webhook }
+      ...mapped,
+      highTimeframe: { ...DEFAULT_WORKFLOW.highTimeframe, ...mapped.highTimeframe },
+      midTimeframe: { ...DEFAULT_WORKFLOW.midTimeframe, ...mapped.midTimeframe },
+      lowTimeframe: { ...DEFAULT_WORKFLOW.lowTimeframe, ...mapped.lowTimeframe },
+      aiConfig: { ...DEFAULT_WORKFLOW.aiConfig, ...mapped.aiConfig },
+      webhook: { ...DEFAULT_WORKFLOW.webhook, ...mapped.webhook }
     };
   });
   const [activeStep, setActiveStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
-  const [apiKeyStatus, setApiKeyStatus] = useState({ AICharts: false, openai: false, anthropic: false });
+  const [apiKeyStatus, setApiKeyStatus] = useState({ tradingview: false, openai: false, anthropic: false });
   const [apiKeyWarning, setApiKeyWarning] = useState('');
 
   useEffect(() => {
     if (workflow) {
+      const mapped = mapWorkflowFromServer(workflow);
       // Deep merge to preserve nested object defaults while using saved values
       setFormData({
         ...DEFAULT_WORKFLOW,
-        ...workflow,
-        highTimeframe: { ...DEFAULT_WORKFLOW.highTimeframe, ...workflow.highTimeframe },
-        midTimeframe: { ...DEFAULT_WORKFLOW.midTimeframe, ...workflow.midTimeframe },
-        lowTimeframe: { ...DEFAULT_WORKFLOW.lowTimeframe, ...workflow.lowTimeframe },
-        aiConfig: { ...DEFAULT_WORKFLOW.aiConfig, ...workflow.aiConfig },
-        webhook: { ...DEFAULT_WORKFLOW.webhook, ...workflow.webhook }
+        ...mapped,
+        highTimeframe: { ...DEFAULT_WORKFLOW.highTimeframe, ...mapped.highTimeframe },
+        midTimeframe: { ...DEFAULT_WORKFLOW.midTimeframe, ...mapped.midTimeframe },
+        lowTimeframe: { ...DEFAULT_WORKFLOW.lowTimeframe, ...mapped.lowTimeframe },
+        aiConfig: { ...DEFAULT_WORKFLOW.aiConfig, ...mapped.aiConfig },
+        webhook: { ...DEFAULT_WORKFLOW.webhook, ...mapped.webhook }
       });
     }
     fetchApiKeyStatus();
@@ -136,9 +153,9 @@ export default function WorkflowEditor({ workflow, onSave, onCancel, onRun }) {
       const res = await fetch('/api/settings');
       const settings = await res.json();
       setApiKeyStatus({
-        AICharts: settings.AICharts?.apiKey && !settings.AICharts.apiKey.includes('••••') ? false : settings.AICharts?.apiKey?.length > 4,
-        openai: settings.openai?.apiKey && !settings.openai.apiKey.includes('••••') ? false : settings.openai?.apiKey?.length > 4,
-        anthropic: settings.anthropic?.apiKey && !settings.anthropic.apiKey.includes('••••') ? false : settings.anthropic?.apiKey?.length > 4
+        tradingview: settings.tradingview?.hasKey || false,
+        openai: settings.openai?.hasKey || false,
+        anthropic: settings.anthropic?.hasKey || false
       });
     } catch (err) {
       console.error('Failed to fetch API key status:', err);
@@ -147,7 +164,7 @@ export default function WorkflowEditor({ workflow, onSave, onCancel, onRun }) {
 
   // Re-validate when API key status or provider changes
   useEffect(() => {
-    if (apiKeyStatus.AICharts !== undefined) {
+    if (apiKeyStatus.tradingview !== undefined) {
       validate();
     }
   }, [apiKeyStatus, formData.aiProvider]);
@@ -176,8 +193,8 @@ export default function WorkflowEditor({ workflow, onSave, onCancel, onRun }) {
     if (!formData.lowTimeframe?.interval) newErrors.lowTimeframe = 'Low timeframe is required';
     
     // Check API keys
-    if (!apiKeyStatus.AICharts) {
-      warnings.push('AICharts API key is not configured');
+    if (!apiKeyStatus.tradingview) {
+      warnings.push('TradingView Charts API key is not configured');
     }
     
     if (formData.aiProvider === 'openai' && !apiKeyStatus.openai) {
@@ -270,8 +287,8 @@ export default function WorkflowEditor({ workflow, onSave, onCancel, onRun }) {
           <div>
             <p className="text-sm text-amber-200 font-medium">Missing API Keys</p>
             <p className="text-xs text-amber-300/70 mt-1">{apiKeyWarning}</p>
-            <button 
-              onClick={() => window.location.hash = 'settings'}
+            <button
+              onClick={() => onNavigateToSettings && onNavigateToSettings()}
               className="text-xs text-amber-400 hover:text-amber-300 mt-2 underline"
             >
               Go to Settings →

@@ -144,6 +144,7 @@ function Dashboard() {
                     onSave={handleSaveWorkflow}
                     onCancel={() => setView('workflows')}
                     onRun={handleRunWorkflow}
+                    onNavigateToSettings={() => setView('settings')}
                   />
                 </motion.div>
               )}

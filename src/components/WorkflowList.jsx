@@ -43,15 +43,20 @@ export default function WorkflowList({ onEdit, onRun, onNew }) {
 
   const handleDuplicate = async (workflow) => {
     try {
+      // Map snake_case server fields to camelCase for the API
       const res = await fetch('/api/workflows', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...workflow,
-          id: undefined,
           name: `${workflow.name} (Copy)`,
-          createdAt: undefined,
-          updatedAt: undefined
+          symbol: workflow.symbol,
+          highTimeframe: workflow.high_timeframe || workflow.highTimeframe,
+          midTimeframe: workflow.mid_timeframe || workflow.midTimeframe,
+          lowTimeframe: workflow.low_timeframe || workflow.lowTimeframe,
+          aiProvider: workflow.ai_provider || workflow.aiProvider,
+          aiConfig: workflow.ai_config || workflow.aiConfig,
+          userPrompt: workflow.user_prompt || workflow.userPrompt,
+          webhook: workflow.webhook
         })
       });
       const newWorkflow = await res.json();
