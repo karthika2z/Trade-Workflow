@@ -238,10 +238,11 @@ router.get('/', async (req, res) => {
 });
 
 /**
- * GET /api/execute/:workflowId
+ * POST /api/execute/:workflowId
  * Execute workflow with SSE streaming for real-time updates
+ * Supports overrides via POST body
  */
-router.get('/execute/:workflowId', async (req, res) => {
+router.post('/:workflowId', async (req, res) => {
   const executionId = uuidv4();
   const startTime = Date.now();
 
@@ -264,7 +265,15 @@ router.get('/execute/:workflowId', async (req, res) => {
       return res.end();
     }
 
-    sendUpdate('init', 'completed', { workflowName: workflow.name, executionId });
+    // Get overrides from request body
+    const overrides = req.body || {};
+    const effectiveSymbol = overrides.symbol || workflow.symbol;
+
+    sendUpdate('init', 'completed', {
+      workflowName: workflow.name,
+      executionId,
+      symbol: effectiveSymbol
+    });
 
     // Get API keys from config
     sendUpdate('api_keys', 'running', { message: 'Loading API keys...' });
@@ -281,19 +290,23 @@ router.get('/execute/:workflowId', async (req, res) => {
     }
     sendUpdate('api_keys', 'completed', { message: 'API keys loaded' });
 
-    // Fetch charts
+    // Fetch charts - apply overrides if provided
     sendUpdate('charts', 'running', { message: 'Fetching chart images...' });
 
+    const highTimeframe = overrides.highTimeframe || workflow.high_timeframe;
+    const midTimeframe = overrides.midTimeframe || workflow.mid_timeframe;
+    const lowTimeframe = overrides.lowTimeframe || workflow.low_timeframe;
+
     const chartConfigs = [
-      { ...workflow.high_timeframe, label: 'High Timeframe' },
-      ...(workflow.mid_timeframe?.enabled ? [{ ...workflow.mid_timeframe, label: 'Mid Timeframe' }] : []),
-      { ...workflow.low_timeframe, label: 'Low Timeframe' }
+      { ...highTimeframe, label: 'High Timeframe' },
+      ...(midTimeframe?.enabled ? [{ ...midTimeframe, label: 'Mid Timeframe' }] : []),
+      { ...lowTimeframe, label: 'Low Timeframe' }
     ];
 
     const chartResults = [];
     for (const chartConfig of chartConfigs) {
       sendUpdate('charts', 'running', { message: `Fetching ${chartConfig.label} chart...` });
-      const result = await fetchChartImage(chartConfig, workflow.symbol);
+      const result = await fetchChartImage(chartConfig, effectiveSymbol);
       result.label = chartConfig.label;
       chartResults.push(result);
 
@@ -390,7 +403,7 @@ router.get('/execute/:workflowId', async (req, res) => {
       id: executionId,
       workflow_id: workflow.id,
       workflow_name: workflow.name,
-      symbol: workflow.symbol,
+      symbol: effectiveSymbol,
       duration: Date.now() - startTime,
       charts: chartResults.map(c => ({
         label: c.label,

@@ -114,6 +114,13 @@ const normalizeIntervalForDisplay = (interval) => {
   return mapping[interval] || interval;
 };
 
+// Helper to get workflow fields (handles snake_case from server or camelCase)
+const getWorkflowField = (wf, field) => {
+  if (!wf) return undefined;
+  const snakeCase = field.replace(/([A-Z])/g, '_$1').toLowerCase();
+  return wf[snakeCase] || wf[field];
+};
+
 export default function ExecutionView({ workflow, executionState }) {
   const [steps, setSteps] = useState([]);
   const [isRunning, setIsRunning] = useState(false);
@@ -148,9 +155,13 @@ export default function ExecutionView({ workflow, executionState }) {
 
   const syncOverridesFromWorkflow = (wf) => {
     setSymbolOverride(wf.symbol || '');
-    setHtfInterval(normalizeIntervalForDisplay(wf.highTimeframe?.interval || ''));
-    setMtfInterval(normalizeIntervalForDisplay(wf.midTimeframe?.interval || ''));
-    setLtfInterval(normalizeIntervalForDisplay(wf.lowTimeframe?.interval || ''));
+    // Handle both snake_case (from server) and camelCase field names
+    const htf = wf.high_timeframe || wf.highTimeframe;
+    const mtf = wf.mid_timeframe || wf.midTimeframe;
+    const ltf = wf.low_timeframe || wf.lowTimeframe;
+    setHtfInterval(normalizeIntervalForDisplay(htf?.interval || ''));
+    setMtfInterval(normalizeIntervalForDisplay(mtf?.interval || ''));
+    setLtfInterval(normalizeIntervalForDisplay(ltf?.interval || ''));
   };
 
   const fetchWorkflows = async () => {
@@ -192,27 +203,32 @@ export default function ExecutionView({ workflow, executionState }) {
     abortControllerRef.current = new AbortController();
     
     try {
+      // Get workflow timeframes (handle snake_case from server)
+      const wfHtf = getWorkflowField(selectedWorkflow, 'highTimeframe');
+      const wfMtf = getWorkflowField(selectedWorkflow, 'midTimeframe');
+      const wfLtf = getWorkflowField(selectedWorkflow, 'lowTimeframe');
+
       // Build override payload
       const overrides = {};
       if (symbolOverride && symbolOverride !== selectedWorkflow.symbol) {
         overrides.symbol = symbolOverride;
       }
       // Add timeframe overrides if changed
-      if (htfInterval && htfInterval !== selectedWorkflow.highTimeframe?.interval) {
+      if (htfInterval && htfInterval !== normalizeIntervalForDisplay(wfHtf?.interval)) {
         overrides.highTimeframe = {
-          ...selectedWorkflow.highTimeframe,
+          ...wfHtf,
           interval: htfInterval
         };
       }
-      if (selectedWorkflow.midTimeframe?.enabled && mtfInterval && mtfInterval !== selectedWorkflow.midTimeframe?.interval) {
+      if (wfMtf?.enabled && mtfInterval && mtfInterval !== normalizeIntervalForDisplay(wfMtf?.interval)) {
         overrides.midTimeframe = {
-          ...selectedWorkflow.midTimeframe,
+          ...wfMtf,
           interval: mtfInterval
         };
       }
-      if (ltfInterval && ltfInterval !== selectedWorkflow.lowTimeframe?.interval) {
+      if (ltfInterval && ltfInterval !== normalizeIntervalForDisplay(wfLtf?.interval)) {
         overrides.lowTimeframe = {
-          ...selectedWorkflow.lowTimeframe,
+          ...wfLtf,
           interval: ltfInterval
         };
       }
@@ -409,7 +425,7 @@ export default function ExecutionView({ workflow, executionState }) {
                 </div>
 
                 {/* MTF - only show if enabled in workflow */}
-                {selectedWorkflow.midTimeframe?.enabled && (
+                {getWorkflowField(selectedWorkflow, 'midTimeframe')?.enabled && (
                   <div>
                     <label className="block text-xs text-purple-400 mb-1">MTF (Mid)</label>
                     <select
@@ -443,19 +459,25 @@ export default function ExecutionView({ workflow, executionState }) {
 
               {/* AI Provider Badge & Reset Button */}
               <div className="flex items-center justify-between">
-                <span className={`px-3 py-1 text-sm rounded border ${
-                  selectedWorkflow.aiProvider === 'openai'
-                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                    : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-                }`}>
-                  {selectedWorkflow.aiProvider === 'openai' ? 'OpenAI' : 'Claude'}: {selectedWorkflow.aiConfig?.model}
-                </span>
+                {(() => {
+                  const aiProvider = getWorkflowField(selectedWorkflow, 'aiProvider');
+                  const aiConfig = getWorkflowField(selectedWorkflow, 'aiConfig');
+                  return (
+                    <span className={`px-3 py-1 text-sm rounded border ${
+                      aiProvider === 'openai'
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                    }`}>
+                      {aiProvider === 'openai' ? 'OpenAI' : 'Claude'}: {aiConfig?.model}
+                    </span>
+                  );
+                })()}
 
-                {/* Reset All Overrides */}
+                {/* Reset All Overrides - show if any value differs from workflow defaults */}
                 {(symbolOverride !== selectedWorkflow.symbol ||
-                  htfInterval !== selectedWorkflow.highTimeframe?.interval ||
-                  mtfInterval !== selectedWorkflow.midTimeframe?.interval ||
-                  ltfInterval !== selectedWorkflow.lowTimeframe?.interval) && (
+                  htfInterval !== normalizeIntervalForDisplay(getWorkflowField(selectedWorkflow, 'highTimeframe')?.interval) ||
+                  mtfInterval !== normalizeIntervalForDisplay(getWorkflowField(selectedWorkflow, 'midTimeframe')?.interval) ||
+                  ltfInterval !== normalizeIntervalForDisplay(getWorkflowField(selectedWorkflow, 'lowTimeframe')?.interval)) && (
                   <button
                     onClick={() => syncOverridesFromWorkflow(selectedWorkflow)}
                     className="text-xs text-slate-500 hover:text-slate-300 flex items-center gap-1"
