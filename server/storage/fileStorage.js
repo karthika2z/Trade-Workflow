@@ -83,10 +83,14 @@ async function writeToGCS(fileName, data) {
 
 // ============ GENERIC READ/WRITE ============
 
-async function readData(type) {
-  // Check cache first
+async function readData(type, bypassCache = false) {
+  // Config should always be read fresh (API keys must be accurate)
+  // Other types can use cache for performance
+  const shouldBypassCache = bypassCache || type === 'config';
+
+  // Check cache first (unless bypassing)
   const now = Date.now();
-  if (cache[type] !== null && (now - cache.lastFetch[type]) < CACHE_TTL) {
+  if (!shouldBypassCache && cache[type] !== null && (now - cache.lastFetch[type]) < CACHE_TTL) {
     return cache[type];
   }
 
