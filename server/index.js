@@ -14,6 +14,7 @@ config({ path: path.join(__dirname, '..', '.env') });
 import workflowRoutes from './routes/workflows.js';
 import executionRoutes from './routes/executions.js';
 import settingsRoutes from './routes/settings.js';
+import docsRoutes from './routes/docs.js';
 
 // Initialize file storage (creates data directory if needed)
 import { getMaskedConfig } from './storage/fileStorage.js';
@@ -93,9 +94,10 @@ app.get('/api/health', async (req, res) => {
 
 app.use('/api/workflows', workflowRoutes);
 app.use('/api/executions', executionRoutes);
-app.use('/api/execute', executionRoutes); // Alias for backward compatibility
-app.use('/api/run', executionRoutes); // Alias for API triggering
+app.use('/api/execute', executionRoutes); // Alias for backward compatibility (SSE)
+// Note: JSON API endpoint is at /api/executions/run/:workflowId
 app.use('/api/settings', settingsRoutes);
+app.use('/api/docs', docsRoutes);
 
 // ============================================================================
 // SERVE STATIC FILES (PRODUCTION)
@@ -144,12 +146,13 @@ app.listen(PORT, async () => {
   console.log(`  Storage:     ${gcsBucket ? `GCS (${gcsBucket})` : 'Local (./data/)'}`);
   console.log('');
   console.log('  API Endpoints:');
-  console.log('  - GET  /api/workflows         List all workflows');
-  console.log('  - POST /api/workflows         Create workflow');
-  console.log('  - POST /api/execute/:id       Execute workflow (SSE)');
-  console.log('  - POST /api/run/:id           Execute workflow (JSON)');
-  console.log('  - GET  /api/settings          Get API keys');
-  console.log('  - PUT  /api/settings          Update API keys');
+  console.log('  - GET  /api/workflows              List all workflows');
+  console.log('  - POST /api/workflows              Create workflow');
+  console.log('  - POST /api/execute/:id            Execute workflow (SSE)');
+  console.log('  - POST /api/executions/run/:id     Execute workflow (JSON)');
+  console.log('  - GET  /api/settings               Get API keys');
+  console.log('  - PUT  /api/settings               Update API keys');
+  console.log('  - GET  /api/docs                   API documentation');
   console.log('');
 
   try {

@@ -54,7 +54,6 @@ async function fetchChartImage(chartConfig, symbol) {
     symbol: symbol,
     interval: normalizedInterval,
     style: '1',
-    theme: 'light',
     width: '1920',
     height: '1080',
     format: 'png'
@@ -65,7 +64,7 @@ async function fetchChartImage(chartConfig, symbol) {
   }
 
   // Get TradingView API key from config
-  const tradingviewApiKey = getApiKey('tradingview');
+  const tradingviewApiKey = await getApiKey('tradingview');
 
   const url = `${CHART_SERVICE_URL}/v1/tradingview/advanced-chart?${params}`;
 
@@ -104,7 +103,7 @@ async function fetchChartImage(chartConfig, symbol) {
  * Analyze charts with OpenAI
  */
 async function analyzeWithOpenAI(apiKey, config, images, userPrompt) {
-  const openai = new OpenAI.default({ apiKey });
+  const openai = new OpenAI({ apiKey });
 
   // Build content array with labeled images
   const imageContents = [];
@@ -147,7 +146,7 @@ async function analyzeWithOpenAI(apiKey, config, images, userPrompt) {
  * Analyze charts with Claude
  */
 async function analyzeWithClaude(apiKey, config, images, userPrompt) {
-  const anthropic = new Anthropic.default({ apiKey });
+  const anthropic = new Anthropic({ apiKey });
 
   // Build content array with labeled images
   const imageContents = [];
@@ -326,7 +325,11 @@ router.post('/:workflowId', async (req, res) => {
 
     sendUpdate('charts', 'completed', {
       message: `Fetched ${successfulCharts.length} charts`,
-      charts: chartResults.map(c => ({ label: c.label, success: c.success }))
+      charts: chartResults.map(c => ({
+        label: c.label,
+        success: c.success,
+        image: c.success ? c.image : null
+      }))
     });
 
     // AI Analysis
@@ -431,9 +434,12 @@ router.post('/:workflowId', async (req, res) => {
 });
 
 /**
- * POST /api/run/:workflowId
+ * POST /api/executions/run/:workflowId
  * Simple execution endpoint (non-SSE) for API calls
- * Returns analysis + chart images
+ * Returns analysis + chart images as JSON
+ *
+ * This endpoint is ideal for programmatic/API access since it returns
+ * a single JSON response instead of Server-Sent Events.
  */
 router.post('/run/:workflowId', async (req, res) => {
   try {
@@ -444,26 +450,35 @@ router.post('/run/:workflowId', async (req, res) => {
       return res.status(404).json({ error: 'Workflow not found' });
     }
 
-    // Get API key from config
-    const apiKey = await getApiKey(workflow.ai_provider);
+    // Get overrides from request body
+    const overrides = req.body || {};
+    const effectiveSymbol = overrides.symbol || workflow.symbol;
+
+    // Get API key from config (support both camelCase and snake_case)
+    const aiProvider = workflow.aiProvider || workflow.ai_provider;
+    const apiKey = await getApiKey(aiProvider);
 
     if (!apiKey) {
       return res.status(400).json({
-        error: `Missing ${workflow.ai_provider} API key`,
-        message: `Please add your ${workflow.ai_provider} API key in Settings.`
+        error: `Missing ${aiProvider} API key`,
+        message: `Please add your ${aiProvider} API key in Settings.`
       });
     }
 
-    // Fetch charts
+    // Fetch charts (support both camelCase and snake_case field names)
+    const highTimeframe = overrides.highTimeframe || workflow.highTimeframe || workflow.high_timeframe;
+    const midTimeframe = overrides.midTimeframe || workflow.midTimeframe || workflow.mid_timeframe;
+    const lowTimeframe = overrides.lowTimeframe || workflow.lowTimeframe || workflow.low_timeframe;
+
     const chartConfigs = [
-      { ...workflow.high_timeframe, label: 'High Timeframe' },
-      ...(workflow.mid_timeframe?.enabled ? [{ ...workflow.mid_timeframe, label: 'Mid Timeframe' }] : []),
-      { ...workflow.low_timeframe, label: 'Low Timeframe' }
+      { ...highTimeframe, label: 'High Timeframe' },
+      ...(midTimeframe?.enabled ? [{ ...midTimeframe, label: 'Mid Timeframe' }] : []),
+      { ...lowTimeframe, label: 'Low Timeframe' }
     ];
 
     const chartResults = await Promise.all(
       chartConfigs.map(async (chartConfig) => {
-        const result = await fetchChartImage(chartConfig, workflow.symbol);
+        const result = await fetchChartImage(chartConfig, effectiveSymbol);
         result.label = chartConfig.label;
         return result;
       })
@@ -474,21 +489,24 @@ router.post('/run/:workflowId', async (req, res) => {
       return res.status(500).json({ error: 'No charts could be fetched' });
     }
 
-    // AI Analysis
+    // AI Analysis (support both camelCase and snake_case)
+    const aiConfig = workflow.aiConfig || workflow.ai_config;
+    const userPrompt = workflow.userPrompt || workflow.user_prompt;
+
     let aiResponse;
-    if (workflow.ai_provider === 'openai') {
+    if (aiProvider === 'openai') {
       aiResponse = await analyzeWithOpenAI(
         apiKey,
-        workflow.ai_config,
+        aiConfig,
         successfulCharts,
-        workflow.user_prompt
+        userPrompt
       );
     } else {
       aiResponse = await analyzeWithClaude(
         apiKey,
-        workflow.ai_config,
+        aiConfig,
         successfulCharts,
-        workflow.user_prompt
+        userPrompt
       );
     }
 
@@ -514,7 +532,7 @@ router.post('/run/:workflowId', async (req, res) => {
     await createExecution({
       workflow_id: workflow.id,
       workflow_name: workflow.name,
-      symbol: workflow.symbol,
+      symbol: effectiveSymbol,
       charts: chartResults.map(c => ({
         label: c.label,
         success: c.success,
@@ -529,7 +547,7 @@ router.post('/run/:workflowId', async (req, res) => {
     res.json({
       success: true,
       workflow: workflow.name,
-      symbol: workflow.symbol,
+      symbol: effectiveSymbol,
       analysis: aiResponse,
       charts: successfulCharts.map(c => ({
         label: c.label,
