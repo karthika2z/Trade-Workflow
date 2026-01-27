@@ -11,7 +11,7 @@ const API_DOCS = {
   endpoints: [
     {
       method: 'POST',
-      path: '/api/run/{workflowId}',
+      path: '/api/executions/run/{workflowId}',
       name: 'Execute Workflow (JSON)',
       description: 'Execute a workflow and receive results as a single JSON response. Best for automation and external integrations.',
       parameters: {
@@ -20,6 +20,14 @@ const API_DOCS = {
             type: 'string',
             required: true,
             description: 'The unique identifier of the workflow to execute'
+          }
+        },
+        query: {
+          includeImages: {
+            type: 'boolean',
+            required: false,
+            default: false,
+            description: 'Set to "true" to include base64 chart images in the response'
           }
         },
         body: {
@@ -34,7 +42,8 @@ const API_DOCS = {
             description: 'Override high timeframe settings',
             properties: {
               interval: 'Timeframe interval (e.g., "D", "W", "4h")',
-              indicators: 'Array of indicator names'
+              indicators: 'Array of indicator names',
+              resolution: 'Chart resolution (e.g., "1920x1080", "800x600", "600x1200")'
             }
           },
           midTimeframe: {
@@ -44,7 +53,8 @@ const API_DOCS = {
             properties: {
               enabled: 'Boolean to enable/disable',
               interval: 'Timeframe interval',
-              indicators: 'Array of indicator names'
+              indicators: 'Array of indicator names',
+              resolution: 'Chart resolution (e.g., "1920x1080", "800x600", "600x1200")'
             }
           },
           lowTimeframe: {
@@ -53,7 +63,8 @@ const API_DOCS = {
             description: 'Override low timeframe settings',
             properties: {
               interval: 'Timeframe interval',
-              indicators: 'Array of indicator names'
+              indicators: 'Array of indicator names',
+              resolution: 'Chart resolution (e.g., "1920x1080", "800x600", "600x1200")'
             }
           }
         }
@@ -212,7 +223,7 @@ router.get('/', (req, res) => {
     <div class="endpoint">
       <div class="endpoint-header">
         <span class="method">POST</span>
-        <span class="path">/api/run/{workflowId}</span>
+        <span class="path">/api/executions/run/{workflowId}</span>
       </div>
       <div class="description">
         <strong>Execute Workflow (JSON Response)</strong><br>
@@ -225,19 +236,30 @@ router.get('/', (req, res) => {
         <tr><td>workflowId</td><td class="type">string</td><td>The unique identifier of the workflow <span class="required">required</span></td></tr>
       </table>
 
+      <div class="section-title">Query Parameters</div>
+      <table>
+        <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+        <tr><td>includeImages</td><td class="type">boolean</td><td>Set to <code>true</code> to include base64 chart images in response (default: false)</td></tr>
+      </table>
+
       <div class="section-title">Request Body (Optional Overrides)</div>
       <table>
         <tr><th>Field</th><th>Type</th><th>Description</th></tr>
         <tr><td>symbol</td><td class="type">string</td><td>Override the trading symbol (e.g., <code>BINANCE:ETHUSDT</code>)</td></tr>
-        <tr><td>highTimeframe</td><td class="type">object</td><td>Override high timeframe: <code>{ interval, indicators }</code></td></tr>
-        <tr><td>midTimeframe</td><td class="type">object</td><td>Override mid timeframe: <code>{ enabled, interval, indicators }</code></td></tr>
-        <tr><td>lowTimeframe</td><td class="type">object</td><td>Override low timeframe: <code>{ interval, indicators }</code></td></tr>
+        <tr><td>highTimeframe</td><td class="type">object</td><td>Override high timeframe: <code>{ interval, indicators, resolution }</code></td></tr>
+        <tr><td>midTimeframe</td><td class="type">object</td><td>Override mid timeframe: <code>{ enabled, interval, indicators, resolution }</code></td></tr>
+        <tr><td>lowTimeframe</td><td class="type">object</td><td>Override low timeframe: <code>{ interval, indicators, resolution }</code></td></tr>
       </table>
 
       <div class="section-title">Example Request</div>
-      <pre><code>curl -X POST https://your-app.run.app/api/run/YOUR_WORKFLOW_ID \\
+      <pre><code>curl -X POST "https://your-app.run.app/api/executions/run/YOUR_WORKFLOW_ID" \\
   -H "Content-Type: application/json" \\
   -d '{"symbol": "BINANCE:ETHUSDT"}'</code></pre>
+
+      <div class="section-title">Example with Images</div>
+      <pre><code>curl -X POST "https://your-app.run.app/api/executions/run/YOUR_WORKFLOW_ID?includeImages=true" \\
+  -H "Content-Type: application/json" \\
+  -d '{}'</code></pre>
 
       <div class="section-title">Success Response</div>
       <pre><code>{
@@ -250,10 +272,13 @@ router.get('/', (req, res) => {
     "key_levels": { ... }
   },
   "charts": [
-    { "label": "High Timeframe", "interval": "D", "image": "data:image/png;base64,..." }
+    { "label": "High Timeframe", "interval": "D" },
+    { "label": "Low Timeframe", "interval": "15" }
   ],
-  "webhook": null
+  "webhook": null,
+  "timestamp": "2024-01-15T10:30:00.000Z"
 }</code></pre>
+      <p style="color: #64748b; font-size: 0.8rem; margin-top: 0.5rem;">Note: Chart images are excluded by default. Add <code>?includeImages=true</code> to include base64 image data.</p>
 
       <div class="section-title">Error Response</div>
       <pre><code>{
@@ -315,6 +340,15 @@ data: {"step":"charts","status":"completed","data":{"message":"Fetched 3 charts"
       <tr><td><code>D</code>, <code>1D</code></td><td>D</td><td>Daily</td></tr>
       <tr><td><code>W</code>, <code>1W</code></td><td>W</td><td>Weekly</td></tr>
       <tr><td><code>M</code>, <code>1M</code></td><td>M</td><td>Monthly</td></tr>
+    </table>
+
+    <h3>Chart Resolutions</h3>
+    <table>
+      <tr><th>Resolution</th><th>Dimensions</th><th>Best For</th></tr>
+      <tr><td><code>1920x1080</code></td><td>1920×1080</td><td>Full history view with maximum detail (default)</td></tr>
+      <tr><td><code>800x600</code></td><td>800×600</td><td>Classic aspect ratio with history</td></tr>
+      <tr><td><code>600x800</code></td><td>600×800</td><td>Balanced mobile portrait view</td></tr>
+      <tr><td><code>600x1200</code></td><td>600×1200</td><td>Emphasizes current price action (vertical mobile view)</td></tr>
     </table>
 
     <p style="margin-top: 2rem; color: #64748b; font-size: 0.875rem;">

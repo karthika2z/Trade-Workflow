@@ -47,15 +47,18 @@ function normalizeInterval(interval) {
  * Fetch chart image from TradingView service
  */
 async function fetchChartImage(chartConfig, symbol) {
-  const { interval, indicators = [] } = chartConfig;
+  const { interval, indicators = [], resolution = '1920x1080' } = chartConfig;
   const normalizedInterval = normalizeInterval(interval);
+
+  // Parse resolution (format: "widthxheight")
+  const [width, height] = resolution.split('x').map(v => v.trim());
 
   const params = new URLSearchParams({
     symbol: symbol,
     interval: normalizedInterval,
     style: '1',
-    width: '1920',
-    height: '1080',
+    width: width || '1920',
+    height: height || '1080',
     format: 'png'
   });
 
@@ -543,7 +546,9 @@ router.post('/run/:workflowId', async (req, res) => {
       status: 'completed'
     });
 
-    // Return response with charts included
+    // Return response (images excluded by default to reduce payload size)
+    const includeImages = req.query.includeImages === 'true';
+
     res.json({
       success: true,
       workflow: workflow.name,
@@ -552,7 +557,7 @@ router.post('/run/:workflowId', async (req, res) => {
       charts: successfulCharts.map(c => ({
         label: c.label,
         interval: c.config?.interval,
-        image: c.image
+        ...(includeImages && { image: c.image })
       })),
       webhook: webhookResult,
       timestamp: new Date().toISOString()

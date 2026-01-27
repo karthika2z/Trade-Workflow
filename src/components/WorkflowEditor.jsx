@@ -26,6 +26,13 @@ const COMMON_INDICATORS = [
   { id: 'Ichimoku', name: 'Ichimoku Cloud', category: 'Trend' }
 ];
 
+const RESOLUTION_PRESETS = [
+  { id: '1920x1080', width: 1920, height: 1080, name: 'HD Wide (History)', description: 'Full history view with maximum detail' },
+  { id: '800x600', width: 800, height: 600, name: 'Standard (History)', description: 'Classic aspect ratio with history' },
+  { id: '600x800', width: 600, height: 800, name: 'Mobile Portrait (Balanced)', description: 'Balanced mobile view' },
+  { id: '600x1200', width: 600, height: 1200, name: 'Mobile Portrait (Current)', description: 'Emphasizes current price action' }
+];
+
 // AI Model Configuration
 // To add new models: add entry with { id: 'model-id', name: 'Display Name', vision: true/false }
 // Models are listed in recommended order (first = default)
@@ -51,9 +58,9 @@ const AI_MODELS = {
 const DEFAULT_WORKFLOW = {
   name: '',
   symbol: 'BINANCE:BTCUSDT',
-  highTimeframe: { interval: 'D', indicators: ['MACD'] },
-  midTimeframe: { enabled: false, interval: '240', indicators: [] },
-  lowTimeframe: { interval: '60', indicators: ['MACD'] },
+  highTimeframe: { interval: 'D', indicators: ['MACD'], resolution: '1920x1080' },
+  midTimeframe: { enabled: false, interval: '240', indicators: [], resolution: '1920x1080' },
+  lowTimeframe: { interval: '60', indicators: ['MACD'], resolution: '1920x1080' },
   aiProvider: 'anthropic',
   aiConfig: {
     model: 'latest',
@@ -689,7 +696,25 @@ function ChartConfig({ title, description, config, onChange, color, compact, err
             </p>
           )}
         </div>
-        
+
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-2">Chart Resolution</label>
+          <select
+            value={config?.resolution || '1920x1080'}
+            onChange={(e) => onChange({ ...config, resolution: e.target.value })}
+            className="w-full px-4 py-2.5 bg-terminal-bg border border-terminal-border rounded-lg text-white appearance-none"
+          >
+            {RESOLUTION_PRESETS.map(res => (
+              <option key={res.id} value={res.id}>
+                {res.name} ({res.width}×{res.height})
+              </option>
+            ))}
+          </select>
+          <p className="text-slate-500 text-xs mt-1.5">
+            {RESOLUTION_PRESETS.find(r => r.id === (config?.resolution || '1920x1080'))?.description}
+          </p>
+        </div>
+
         <div>
           <button
             type="button"
