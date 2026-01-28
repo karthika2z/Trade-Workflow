@@ -280,7 +280,7 @@ router.post('/:workflowId', async (req, res) => {
     // Get API keys from config
     sendUpdate('api_keys', 'running', { message: 'Loading API keys...' });
 
-    const requiredProvider = workflow.ai_provider;
+    const requiredProvider = workflow.aiProvider || workflow.ai_provider;
     const apiKey = await getApiKey(requiredProvider);
 
     if (!apiKey) {
@@ -295,9 +295,9 @@ router.post('/:workflowId', async (req, res) => {
     // Fetch charts - apply overrides if provided
     sendUpdate('charts', 'running', { message: 'Fetching chart images...' });
 
-    const highTimeframe = overrides.highTimeframe || workflow.high_timeframe;
-    const midTimeframe = overrides.midTimeframe || workflow.mid_timeframe;
-    const lowTimeframe = overrides.lowTimeframe || workflow.low_timeframe;
+    const highTimeframe = overrides.highTimeframe || workflow.highTimeframe || workflow.high_timeframe;
+    const midTimeframe = overrides.midTimeframe || workflow.midTimeframe || workflow.mid_timeframe;
+    const lowTimeframe = overrides.lowTimeframe || workflow.lowTimeframe || workflow.low_timeframe;
 
     const chartConfigs = [
       { ...highTimeframe, label: 'High Timeframe' },
@@ -338,21 +338,24 @@ router.post('/:workflowId', async (req, res) => {
     // AI Analysis
     sendUpdate('analysis', 'running', { message: 'Analyzing charts with AI...' });
 
+    const aiConfig = workflow.aiConfig || workflow.ai_config;
+    const userPrompt = workflow.userPrompt || workflow.user_prompt;
+
     let aiResponse;
     try {
-      if (workflow.ai_provider === 'openai') {
+      if (requiredProvider === 'openai') {
         aiResponse = await analyzeWithOpenAI(
           apiKey,
-          workflow.ai_config,
+          aiConfig,
           successfulCharts,
-          workflow.user_prompt
+          userPrompt
         );
       } else {
         aiResponse = await analyzeWithClaude(
           apiKey,
-          workflow.ai_config,
+          aiConfig,
           successfulCharts,
-          workflow.user_prompt
+          userPrompt
         );
       }
 
