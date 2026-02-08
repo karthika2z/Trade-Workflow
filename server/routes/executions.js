@@ -300,6 +300,13 @@ router.post('/:workflowId', async (req, res) => {
     const baseMidTimeframe = workflow.midTimeframe || workflow.mid_timeframe;
     const baseLowTimeframe = workflow.lowTimeframe || workflow.low_timeframe;
 
+    console.log('DEBUG SSE - Base timeframes:', {
+      high: baseHighTimeframe,
+      mid: baseMidTimeframe,
+      low: baseLowTimeframe,
+      overrides: overrides
+    });
+
     const highTimeframe = overrides.highTimeframe
       ? { ...baseHighTimeframe, ...overrides.highTimeframe }
       : baseHighTimeframe;
@@ -309,6 +316,12 @@ router.post('/:workflowId', async (req, res) => {
     const lowTimeframe = overrides.lowTimeframe
       ? { ...baseLowTimeframe, ...overrides.lowTimeframe }
       : baseLowTimeframe;
+
+    console.log('DEBUG SSE - Final timeframes:', {
+      high: highTimeframe,
+      mid: midTimeframe,
+      low: lowTimeframe
+    });
 
     const chartConfigs = [
       { ...highTimeframe, label: 'High Timeframe' },
@@ -488,6 +501,13 @@ router.post('/run/:workflowId', async (req, res) => {
     const baseMidTimeframe = workflow.midTimeframe || workflow.mid_timeframe;
     const baseLowTimeframe = workflow.lowTimeframe || workflow.low_timeframe;
 
+    console.log('DEBUG - Base timeframes:', {
+      high: baseHighTimeframe,
+      mid: baseMidTimeframe,
+      low: baseLowTimeframe,
+      overrides: overrides
+    });
+
     const highTimeframe = overrides.highTimeframe
       ? { ...baseHighTimeframe, ...overrides.highTimeframe }
       : baseHighTimeframe;
@@ -497,6 +517,12 @@ router.post('/run/:workflowId', async (req, res) => {
     const lowTimeframe = overrides.lowTimeframe
       ? { ...baseLowTimeframe, ...overrides.lowTimeframe }
       : baseLowTimeframe;
+
+    console.log('DEBUG - Final timeframes:', {
+      high: highTimeframe,
+      mid: midTimeframe,
+      low: lowTimeframe
+    });
 
     const chartConfigs = [
       { ...highTimeframe, label: 'High Timeframe' },
