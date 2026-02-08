@@ -295,9 +295,20 @@ router.post('/:workflowId', async (req, res) => {
     // Fetch charts - apply overrides if provided
     sendUpdate('charts', 'running', { message: 'Fetching chart images...' });
 
-    const highTimeframe = overrides.highTimeframe || workflow.highTimeframe || workflow.high_timeframe;
-    const midTimeframe = overrides.midTimeframe || workflow.midTimeframe || workflow.mid_timeframe;
-    const lowTimeframe = overrides.lowTimeframe || workflow.lowTimeframe || workflow.low_timeframe;
+    // Merge overrides with workflow config to preserve indicators
+    const baseHighTimeframe = workflow.highTimeframe || workflow.high_timeframe;
+    const baseMidTimeframe = workflow.midTimeframe || workflow.mid_timeframe;
+    const baseLowTimeframe = workflow.lowTimeframe || workflow.low_timeframe;
+
+    const highTimeframe = overrides.highTimeframe
+      ? { ...baseHighTimeframe, ...overrides.highTimeframe }
+      : baseHighTimeframe;
+    const midTimeframe = overrides.midTimeframe
+      ? { ...baseMidTimeframe, ...overrides.midTimeframe }
+      : baseMidTimeframe;
+    const lowTimeframe = overrides.lowTimeframe
+      ? { ...baseLowTimeframe, ...overrides.lowTimeframe }
+      : baseLowTimeframe;
 
     const chartConfigs = [
       { ...highTimeframe, label: 'High Timeframe' },
@@ -472,9 +483,20 @@ router.post('/run/:workflowId', async (req, res) => {
     }
 
     // Fetch charts (support both camelCase and snake_case field names)
-    const highTimeframe = overrides.highTimeframe || workflow.highTimeframe || workflow.high_timeframe;
-    const midTimeframe = overrides.midTimeframe || workflow.midTimeframe || workflow.mid_timeframe;
-    const lowTimeframe = overrides.lowTimeframe || workflow.lowTimeframe || workflow.low_timeframe;
+    // Merge overrides with workflow config to preserve indicators
+    const baseHighTimeframe = workflow.highTimeframe || workflow.high_timeframe;
+    const baseMidTimeframe = workflow.midTimeframe || workflow.mid_timeframe;
+    const baseLowTimeframe = workflow.lowTimeframe || workflow.low_timeframe;
+
+    const highTimeframe = overrides.highTimeframe
+      ? { ...baseHighTimeframe, ...overrides.highTimeframe }
+      : baseHighTimeframe;
+    const midTimeframe = overrides.midTimeframe
+      ? { ...baseMidTimeframe, ...overrides.midTimeframe }
+      : baseMidTimeframe;
+    const lowTimeframe = overrides.lowTimeframe
+      ? { ...baseLowTimeframe, ...overrides.lowTimeframe }
+      : baseLowTimeframe;
 
     const chartConfigs = [
       { ...highTimeframe, label: 'High Timeframe' },
