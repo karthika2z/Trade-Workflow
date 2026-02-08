@@ -66,10 +66,19 @@ async function fetchChartImage(chartConfig, symbol) {
     params.append('studies', indicators.join(','));
   }
 
+  console.log('DEBUG - Fetching chart:', {
+    symbol,
+    interval: normalizedInterval,
+    indicators,
+    indicatorsLength: indicators.length,
+    studies: indicators.join(',')
+  });
+
   // Get TradingView API key from config
   const tradingviewApiKey = await getApiKey('tradingview');
 
   const url = `${CHART_SERVICE_URL}/v1/tradingview/advanced-chart?${params}`;
+  console.log('DEBUG - TradingView URL:', url);
 
   try {
     const response = await axios.get(url, {
