@@ -52,6 +52,14 @@ const AI_MODELS = {
     { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet', vision: true },
     { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', vision: true },
     { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku (Fast)', vision: true }
+  ],
+  gemini: [
+    { id: 'latest', name: 'Latest (Auto-update)', vision: true },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', vision: true },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', vision: true },
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', vision: true },
+    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', vision: true },
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', vision: true }
   ]
 };
 
@@ -135,7 +143,7 @@ export default function WorkflowEditor({ workflow, onSave, onCancel, onRun, onNa
   const [activeStep, setActiveStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
-  const [apiKeyStatus, setApiKeyStatus] = useState({ tradingview: false, openai: false, anthropic: false });
+  const [apiKeyStatus, setApiKeyStatus] = useState({ tradingview: false, openai: false, anthropic: false, gemini: false });
   const [apiKeyWarning, setApiKeyWarning] = useState('');
 
   useEffect(() => {
@@ -162,7 +170,8 @@ export default function WorkflowEditor({ workflow, onSave, onCancel, onRun, onNa
       setApiKeyStatus({
         tradingview: settings.tradingview?.hasKey || false,
         openai: settings.openai?.hasKey || false,
-        anthropic: settings.anthropic?.hasKey || false
+        anthropic: settings.anthropic?.hasKey || false,
+        gemini: settings.gemini?.hasKey || false
       });
     } catch (err) {
       console.error('Failed to fetch API key status:', err);
@@ -203,13 +212,17 @@ export default function WorkflowEditor({ workflow, onSave, onCancel, onRun, onNa
     if (!apiKeyStatus.tradingview) {
       warnings.push('TradingView Charts API key is not configured');
     }
-    
+
     if (formData.aiProvider === 'openai' && !apiKeyStatus.openai) {
       warnings.push('OpenAI API key is not configured');
     }
-    
+
     if (formData.aiProvider === 'anthropic' && !apiKeyStatus.anthropic) {
       warnings.push('Anthropic API key is not configured');
+    }
+
+    if (formData.aiProvider === 'gemini' && !apiKeyStatus.gemini) {
+      warnings.push('Gemini API key is not configured');
     }
     
     setErrors(newErrors);
@@ -348,10 +361,14 @@ export default function WorkflowEditor({ workflow, onSave, onCancel, onRun, onNa
           {/* AI Analysis */}
           <div className="p-3 rounded-xl border border-terminal-border bg-slate-800/30">
             <span className="text-xs text-slate-500 text-center block mb-1">Step 2: Analyze</span>
-            <FlowNode 
+            <FlowNode
               icon={<Bot className="w-4 h-4" />}
               label="AI"
-              sublabel={formData.aiProvider === 'openai' ? 'OpenAI' : 'Claude'}
+              sublabel={
+                formData.aiProvider === 'openai' ? 'OpenAI' :
+                formData.aiProvider === 'gemini' ? 'Gemini' :
+                'Claude'
+              }
               color="emerald"
               active={true}
               compact
@@ -772,7 +789,7 @@ function AIConfigStep({ formData, updateField }) {
       {/* Provider Selection */}
       <div>
         <label className="block text-sm font-medium text-slate-300 mb-3">AI Provider</label>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <button
             type="button"
             onClick={() => {
@@ -797,7 +814,7 @@ function AIConfigStep({ formData, updateField }) {
               </div>
             </div>
           </button>
-          
+
           <button
             type="button"
             onClick={() => {
@@ -819,6 +836,31 @@ function AIConfigStep({ formData, updateField }) {
               <div className="text-left">
                 <div className="font-medium text-white">GPT-4</div>
                 <div className="text-xs opacity-70">by OpenAI</div>
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              updateField('aiProvider', 'gemini');
+              updateField('aiConfig.model', 'latest');
+            }}
+            className={`p-4 rounded-xl border transition-all ${
+              formData.aiProvider === 'gemini'
+                ? 'bg-purple-500/10 border-purple-500/50 text-purple-400'
+                : 'bg-terminal-bg border-terminal-border text-slate-400 hover:border-slate-600'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                formData.aiProvider === 'gemini' ? 'bg-purple-500/20' : 'bg-slate-800'
+              }`}>
+                <Bot className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <div className="font-medium text-white">Gemini</div>
+                <div className="text-xs opacity-70">by Google</div>
               </div>
             </div>
           </button>

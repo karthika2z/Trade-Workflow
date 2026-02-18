@@ -148,6 +148,7 @@ function getDefaultData(type) {
     return {
       openai_api_key: '',
       anthropic_api_key: '',
+      gemini_api_key: '',
       tradingview_api_key: ''
     };
   }
@@ -179,6 +180,7 @@ function initializeStorage() {
     fs.writeFileSync(CONFIG_FILE, JSON.stringify({
       openai_api_key: '',
       anthropic_api_key: '',
+      gemini_api_key: '',
       tradingview_api_key: ''
     }, null, 2), 'utf8');
   }
@@ -297,6 +299,7 @@ export async function getApiKey(provider) {
   const keyMap = {
     openai: 'openai_api_key',
     anthropic: 'anthropic_api_key',
+    gemini: 'gemini_api_key',
     tradingview: 'tradingview_api_key'
   };
   return config[keyMap[provider]] || '';
@@ -313,11 +316,17 @@ export async function getMaskedConfig() {
   return {
     openai_api_key: maskApiKey(config.openai_api_key),
     anthropic_api_key: maskApiKey(config.anthropic_api_key),
+    gemini_api_key: maskApiKey(config.gemini_api_key),
     tradingview_api_key: maskApiKey(config.tradingview_api_key),
     // Include flags for whether keys are set
     has_openai_key: !!config.openai_api_key,
     has_anthropic_key: !!config.anthropic_api_key,
-    has_tradingview_key: !!config.tradingview_api_key
+    has_gemini_key: !!config.gemini_api_key,
+    has_tradingview_key: !!config.tradingview_api_key,
+    // Model IDs (not sensitive, not masked)
+    openai_model: config.openai_model || '',
+    anthropic_model: config.anthropic_model || '',
+    gemini_model: config.gemini_model || ''
   };
 }
 

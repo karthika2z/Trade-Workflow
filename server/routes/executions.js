@@ -3,11 +3,13 @@ import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import {
   getWorkflowById,
   getExecutions,
   createExecution,
-  getApiKey
+  getApiKey,
+  getConfig
 } from '../storage/fileStorage.js';
 
 const router = express.Router();
@@ -15,16 +17,28 @@ const router = express.Router();
 // TradingView Charts API URL (platform-provided service)
 const CHART_SERVICE_URL = 'https://tradingview-charts-891341779188.us-central1.run.app';
 
-// Latest model mappings
-const LATEST_MODELS = {
+// Default model fallbacks
+const DEFAULT_MODELS = {
   openai: 'gpt-4o',
-  anthropic: 'claude-sonnet-4-20250514'
+  anthropic: 'claude-sonnet-4-20250514',
+  gemini: 'gemini-2.5-flash'
 };
 
-// Resolve 'latest' to actual model ID
-function resolveModel(model, provider) {
+// Read stored model or fall back to defaults
+async function getLatestModel(provider) {
+  const config = await getConfig();
+  const stored = {
+    openai: config.openai_model,
+    anthropic: config.anthropic_model,
+    gemini: config.gemini_model
+  };
+  return stored[provider] || DEFAULT_MODELS[provider];
+}
+
+// Resolve 'latest' to actual model ID (reads from config at runtime)
+async function resolveModel(model, provider) {
   if (model === 'latest') {
-    return LATEST_MODELS[provider] || model;
+    return await getLatestModel(provider);
   }
   return model;
 }
@@ -144,7 +158,7 @@ async function analyzeWithOpenAI(apiKey, config, images, userPrompt) {
   ];
 
   const response = await openai.chat.completions.create({
-    model: resolveModel(config.model, 'openai') || 'gpt-4o',
+    model: await resolveModel(config.model, 'openai') || 'gpt-4o',
     messages,
     temperature: config.temperature ?? 0.7,
     ...(config.topPEnabled && config.topP !== undefined && { top_p: config.topP }),
@@ -180,7 +194,7 @@ async function analyzeWithClaude(apiKey, config, images, userPrompt) {
   });
 
   const response = await anthropic.messages.create({
-    model: resolveModel(config.model, 'anthropic') || 'claude-sonnet-4-20250514',
+    model: await resolveModel(config.model, 'anthropic') || 'claude-sonnet-4-20250514',
     max_tokens: 4096,
     system: config.systemPrompt || undefined,
     messages: [
@@ -197,6 +211,60 @@ async function analyzeWithClaude(apiKey, config, images, userPrompt) {
   });
 
   return response.content[0].text;
+}
+
+/**
+ * Analyze charts with Gemini
+ */
+async function analyzeWithGemini(apiKey, config, images, userPrompt) {
+  const genAI = new GoogleGenerativeAI(apiKey);
+
+  // Build content array with labeled images
+  const contentParts = [];
+
+  // Add system prompt as initial text if present
+  if (config.systemPrompt) {
+    contentParts.push({
+      text: config.systemPrompt
+    });
+  }
+
+  // Add labeled images
+  images.forEach((img, idx) => {
+    const chartLabel = img.label || `Chart ${idx + 1}`;
+    const intervalInfo = img.config?.interval ? ` (${img.config.interval})` : '';
+    contentParts.push({
+      text: `--- ${chartLabel}${intervalInfo} ---`
+    });
+    contentParts.push({
+      inlineData: {
+        mimeType: 'image/png',
+        data: img.image.replace('data:image/png;base64,', '')
+      }
+    });
+  });
+
+  // Add user prompt
+  contentParts.push({
+    text: userPrompt || 'Analyze these charts and provide trading signals.'
+  });
+
+  const model = genAI.getGenerativeModel({
+    model: await resolveModel(config.model, 'gemini') || 'gemini-2.5-flash'
+  });
+
+  const generationConfig = {
+    maxOutputTokens: 4096,
+    ...(config.temperature !== undefined && { temperature: config.temperature }),
+    ...(config.topPEnabled && config.topP !== undefined && { topP: config.topP })
+  };
+
+  const result = await model.generateContent({
+    contents: [{ role: 'user', parts: contentParts }],
+    generationConfig
+  });
+
+  return result.response.text();
 }
 
 /**
@@ -383,6 +451,13 @@ router.post('/:workflowId', async (req, res) => {
           successfulCharts,
           userPrompt
         );
+      } else if (requiredProvider === 'gemini') {
+        aiResponse = await analyzeWithGemini(
+          apiKey,
+          aiConfig,
+          successfulCharts,
+          userPrompt
+        );
       } else {
         aiResponse = await analyzeWithClaude(
           apiKey,
@@ -559,6 +634,13 @@ router.post('/run/:workflowId', async (req, res) => {
     let aiResponse;
     if (aiProvider === 'openai') {
       aiResponse = await analyzeWithOpenAI(
+        apiKey,
+        aiConfig,
+        successfulCharts,
+        userPrompt
+      );
+    } else if (aiProvider === 'gemini') {
+      aiResponse = await analyzeWithGemini(
         apiKey,
         aiConfig,
         successfulCharts,

@@ -2,23 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Key, Eye, EyeOff, Save, Check, AlertCircle,
-  ExternalLink, Info, Shield
+  ExternalLink, Info, Shield, Play, X, Loader2
 } from 'lucide-react';
 
 export default function SettingsPanel() {
   const [settings, setSettings] = useState({
     tradingview: { apiKey: '' },
-    openai: { apiKey: '' },
-    anthropic: { apiKey: '' }
+    openai: { apiKey: '', model: '' },
+    anthropic: { apiKey: '', model: '' },
+    gemini: { apiKey: '', model: '' }
   });
   const [showKeys, setShowKeys] = useState({
     tradingview: false,
     openai: false,
-    anthropic: false
+    anthropic: false,
+    gemini: false
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [testStatus, setTestStatus] = useState({ openai: null, anthropic: null, gemini: null });
+  const [testMessage, setTestMessage] = useState({ openai: '', anthropic: '', gemini: '' });
 
   useEffect(() => {
     fetchSettings();
@@ -28,7 +32,13 @@ export default function SettingsPanel() {
     try {
       const res = await fetch('/api/settings');
       const data = await res.json();
-      setSettings(data);
+      setSettings(prev => ({
+        ...prev,
+        ...data,
+        openai: { apiKey: '', model: '', ...data.openai },
+        anthropic: { apiKey: '', model: '', ...data.anthropic },
+        gemini: { apiKey: '', model: '', ...data.gemini }
+      }));
     } catch (err) {
       setError('Failed to load settings');
     }
@@ -61,10 +71,80 @@ export default function SettingsPanel() {
   };
 
   const updateKey = (provider, value) => {
-    setSettings(prev => ({
-      ...prev,
-      [provider]: { apiKey: value }
-    }));
+    setSettings(prev => ({ ...prev, [provider]: { ...prev[provider], apiKey: value } }));
+  };
+
+  const updateModel = (provider, value) => {
+    setSettings(prev => ({ ...prev, [provider]: { ...prev[provider], model: value } }));
+    // Reset test status when model changes
+    setTestStatus(prev => ({ ...prev, [provider]: null }));
+    setTestMessage(prev => ({ ...prev, [provider]: '' }));
+  };
+
+  const testModel = async (provider) => {
+    setTestStatus(prev => ({ ...prev, [provider]: 'loading' }));
+    setTestMessage(prev => ({ ...prev, [provider]: '' }));
+    try {
+      const res = await fetch('/api/settings/test-model', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, model: settings[provider]?.model })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTestStatus(prev => ({ ...prev, [provider]: 'success' }));
+        setTestMessage(prev => ({ ...prev, [provider]: data.response }));
+      } else {
+        setTestStatus(prev => ({ ...prev, [provider]: 'error' }));
+        setTestMessage(prev => ({ ...prev, [provider]: data.error }));
+      }
+    } catch (err) {
+      setTestStatus(prev => ({ ...prev, [provider]: 'error' }));
+      setTestMessage(prev => ({ ...prev, [provider]: err.message }));
+    }
+  };
+
+  const ModelTestRow = ({ provider, placeholder }) => {
+    const hasKey = settings[provider]?.hasKey;
+    const status = testStatus[provider];
+    const msg = testMessage[provider];
+
+    return (
+      <div className="mt-3 space-y-2">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={settings[provider]?.model || ''}
+            onChange={(e) => updateModel(provider, e.target.value)}
+            placeholder={placeholder}
+            className="flex-1 px-4 py-2.5 bg-terminal-bg border border-terminal-border rounded-lg text-white placeholder-slate-500 font-mono text-sm"
+          />
+          <button
+            onClick={() => testModel(provider)}
+            disabled={!hasKey || status === 'loading'}
+            title={!hasKey ? 'Save an API key first' : 'Test model'}
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-40 disabled:cursor-not-allowed border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-200"
+          >
+            {status === 'loading'
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Play className="w-4 h-4" />}
+            Test
+          </button>
+        </div>
+        {status === 'success' && (
+          <div className="flex items-center gap-2 text-xs text-emerald-400">
+            <Check className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>Model OK — got: "{msg}"</span>
+          </div>
+        )}
+        {status === 'error' && (
+          <div className="flex items-start gap-2 text-xs text-red-400">
+            <X className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+            <span className="break-all">{msg}</span>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -184,6 +264,8 @@ export default function SettingsPanel() {
           </button>
         </div>
 
+        <ModelTestRow provider="openai" placeholder="Model ID (default: gpt-4o)" />
+
         <div className="mt-3 p-3 bg-slate-800/50 rounded-lg">
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <Info className="w-3.5 h-3.5" />
@@ -236,10 +318,66 @@ export default function SettingsPanel() {
           </button>
         </div>
 
+        <ModelTestRow provider="anthropic" placeholder="Model ID (default: claude-sonnet-4-20250514)" />
+
         <div className="mt-3 p-3 bg-slate-800/50 rounded-lg">
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <Info className="w-3.5 h-3.5" />
             <span>Supports Claude Sonnet 4 and Opus 4 with vision capabilities</span>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Gemini API */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="card"
+      >
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center">
+              <Key className="w-6 h-6 text-purple-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-white">Google Gemini</h3>
+              <p className="text-sm text-slate-400">Gemini for chart analysis</p>
+            </div>
+          </div>
+          <a
+            href="https://aistudio.google.com/app/apikey"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
+          >
+            Get API Key <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
+
+        <div className="relative">
+          <input
+            type={showKeys.gemini ? 'text' : 'password'}
+            value={settings.gemini?.apiKey || ''}
+            onChange={(e) => updateKey('gemini', e.target.value)}
+            placeholder="AIzaSy..."
+            className="w-full px-4 py-3 pr-12 bg-terminal-bg border border-terminal-border rounded-lg text-white placeholder-slate-500 font-mono text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => setShowKeys(prev => ({ ...prev, gemini: !prev.gemini }))}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+          >
+            {showKeys.gemini ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
+        </div>
+
+        <ModelTestRow provider="gemini" placeholder="Model ID (default: gemini-2.5-flash)" />
+
+        <div className="mt-3 p-3 bg-slate-800/50 rounded-lg">
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <Info className="w-3.5 h-3.5" />
+            <span>Supports Gemini 2.5 Flash and Pro with multimodal capabilities</span>
           </div>
         </div>
       </motion.div>
