@@ -907,15 +907,24 @@ function AIConfigStep({ formData, updateField }) {
           {/* Model Selection */}
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">Model</label>
-            <select
+            <input
+              type="text"
+              list={`models-${formData.aiProvider}`}
               value={formData.aiConfig?.model || ''}
               onChange={(e) => updateField('aiConfig.model', e.target.value)}
-              className="w-full px-4 py-3 bg-terminal-bg border border-terminal-border rounded-lg text-white appearance-none"
-            >
+              placeholder={
+                formData.aiProvider === 'openai' ? 'gpt-4o' :
+                formData.aiProvider === 'anthropic' ? 'claude-sonnet-4-20250514' :
+                'gemini-2.5-flash'
+              }
+              className="w-full px-4 py-3 bg-terminal-bg border border-terminal-border rounded-lg text-white placeholder-slate-500 font-mono"
+            />
+            <datalist id={`models-${formData.aiProvider}`}>
               {AI_MODELS[formData.aiProvider]?.map(model => (
                 <option key={model.id} value={model.id}>{model.name}</option>
               ))}
-            </select>
+            </datalist>
+            <p className="text-slate-500 text-xs mt-1.5">Type any model ID or pick from suggestions. Leave blank to use the default.</p>
           </div>
           
           {/* System Prompt */}
