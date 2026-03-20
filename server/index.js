@@ -76,6 +76,7 @@ app.get('/api/health', async (req, res) => {
       services: {
         openai: maskedConfig.has_openai_key,
         anthropic: maskedConfig.has_anthropic_key,
+        gemini: maskedConfig.has_gemini_key,
         tradingview: maskedConfig.has_tradingview_key
       }
     });
@@ -83,7 +84,7 @@ app.get('/api/health', async (req, res) => {
     res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      services: { openai: false, anthropic: false, tradingview: false }
+      services: { openai: false, anthropic: false, gemini: false, tradingview: false }
     });
   }
 });
@@ -160,12 +161,13 @@ app.listen(PORT, async () => {
     console.log('  API Keys Status:');
     console.log(`  - OpenAI:      ${maskedConfig.has_openai_key ? 'Configured' : 'Not set'}`);
     console.log(`  - Anthropic:   ${maskedConfig.has_anthropic_key ? 'Configured' : 'Not set'}`);
+    console.log(`  - Gemini:      ${maskedConfig.has_gemini_key ? 'Configured' : 'Not set'}`);
     console.log(`  - TradingView: ${maskedConfig.has_tradingview_key ? 'Configured' : 'Not set'}`);
     console.log('');
     console.log('='.repeat(60));
     console.log('');
 
-    if (!maskedConfig.has_openai_key && !maskedConfig.has_anthropic_key) {
+    if (!maskedConfig.has_openai_key && !maskedConfig.has_anthropic_key && !maskedConfig.has_gemini_key) {
       console.log('Note: Add API keys in Settings to enable AI analysis\n');
     }
   } catch (err) {
